@@ -78,19 +78,20 @@ class GenerationMixin:
         if eos_token_id is not None and cur_len < min_length:
             scores[:, eos_token_id] = -float("inf")
 
+        cpu_input_ids = input_ids.cpu()
         if no_repeat_ngram_size > 0:
             # calculate a list of banned tokens to prevent repetitively generating the same ngrams
             num_batch_hypotheses = batch_size * num_beams
             # from fairseq: https://github.com/pytorch/fairseq/blob/a07cb6f40480928c9e0548b737aadd36ee66ac76/fairseq/sequence_generator.py#L345
             banned_batch_tokens = calc_banned_ngram_tokens(
-                input_ids, num_batch_hypotheses, no_repeat_ngram_size, cur_len
+                cpu_input_ids, num_batch_hypotheses, no_repeat_ngram_size, cur_len
             )
             for i, banned_tokens in enumerate(banned_batch_tokens):
                 scores[i, banned_tokens] = -float("inf")
 
         if bad_words_ids is not None:
             # calculate a list of banned tokens according to bad words
-            banned_tokens = calc_banned_bad_words_ids(input_ids, bad_words_ids)
+            banned_tokens = calc_banned_bad_words_ids(cpu_input_ids, bad_words_ids)
 
             for i, banned_tokens in enumerate(banned_tokens):
                 scores[i, banned_tokens] = -float("inf")
@@ -774,7 +775,7 @@ class GenerationMixin:
             cur_len = cur_len + 1
 
             # re-order internal states
-            if past is not None:
+            if past is not None: # and self.config.is_encoder_decoder is False:
                 past = self._reorder_cache(past, beam_idx)
 
             # extend attention_mask for new generated input if only decoder

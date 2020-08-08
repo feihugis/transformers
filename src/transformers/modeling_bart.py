@@ -1096,9 +1096,16 @@ class BartForConditionalGeneration(PretrainedBartModel):
         reordered_past = []
         for layer_past in decoder_past_key_values:
             # get the correct batch idx from decoder layer's batch dim for cross and self-attn
-            layer_past_new = {
-                attn_key: _reorder_buffer(attn_cache, beam_idx) for attn_key, attn_cache in layer_past.items()
-            }
+            # layer_past_new = {
+            #     attn_key: _reorder_buffer(attn_cache, beam_idx) for attn_key, attn_cache in layer_past.items()
+            # }
+            layer_past_new = {}
+            for attn_key, attn_cache in layer_past.items():
+                if attn_key == 'self':
+                    layer_past_new[attn_key] = _reorder_buffer(attn_cache, beam_idx)
+                    continue
+                layer_past_new[attn_key] = attn_cache
+
             reordered_past.append(layer_past_new)
 
         new_enc_out = enc_out if enc_out is None else enc_out.index_select(0, beam_idx)
