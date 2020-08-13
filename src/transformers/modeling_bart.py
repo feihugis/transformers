@@ -668,10 +668,11 @@ class SelfAttention(nn.Module):
             v = self.v_proj(query)
 
         q = self._shape(q, tgt_len, bsz)
+        updated_bsz = bsz // beam_size if self.cache_key == 'encoder_decoder' else bsz
         if k is not None:
-            k = self._shape(k, -1, bsz)
+            k = self._shape(k, -1, updated_bsz)
         if v is not None:
-            v = self._shape(v, -1, bsz)
+            v = self._shape(v, -1, updated_bsz)
 
         if saved_state is not None:
             k, v, key_padding_mask = self._use_saved_state(k, v, saved_state, key_padding_mask, static_kv, bsz)
@@ -690,9 +691,9 @@ class SelfAttention(nn.Module):
             assert attn_weights.size() == (bsz * self.num_heads, tgt_len, src_len)
 
         if self.cache_key == 'encoder_decoder':
-            if self.cache_key not in layer_state:
-                k = k.view(bsz // beam_size, beam_size, self.num_heads, -1, self.head_dim)[:, 0:1, :, :, :].contiguous()
-                v = v.view(bsz // beam_size, beam_size, self.num_heads, -1, self.head_dim)[:, 0:1, :, :, :].contiguous()
+            # if self.cache_key not in layer_state:
+            k = k.view(bsz // beam_size, 1, self.num_heads, -1, self.head_dim).contiguous()
+            v = v.view(bsz // beam_size, 1, self.num_heads, -1, self.head_dim).contiguous()
             layer_state[self.cache_key] = {
                 "prev_key": k,
                 "prev_value": v,
@@ -703,13 +704,14 @@ class SelfAttention(nn.Module):
             src_len = k.size(3)
             q0 = q.view(bsz // beam_size, beam_size, self.num_heads, tgt_len, self.head_dim)
             # k0 = k.expand(bsz // beam_size, beam_size, self.num_heads, src_len, self.head_dim)
+            # print(q0.shape, k.shape)
             attn_weights = torch.einsum("bmhtd,bnhsd->bmhts", q0, k).reshape(-1, tgt_len, src_len)
             # k = k.expand(bsz // beam_size, beam_size, self.num_heads, src_len, self.head_dim).reshape(-1, src_len, self.head_dim)
             # attn_weights = torch.bmm(q, k.transpose(1, 2))
             
             assert attn_weights.size() == (bsz * self.num_heads, tgt_len, src_len)
 
-        #print("cache_key: {}, src_len: {}, tgt_len: {}".format(self.cache_key, src_len, tgt_len)) 
+        # print("cache_key: {}, bsz: {}, src_len: {}, tgt_len: {}".format(self.cache_key, bsz, src_len, tgt_len)) 
         
         if attn_mask is not None:
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attn_mask
@@ -1252,10 +1254,10 @@ class BartForConditionalGeneration(PretrainedBartModel):
 
             reordered_past.append(layer_past_new)
 
-        new_enc_out = enc_out if enc_out is None else enc_out.index_select(0, beam_idx)
+        #new_enc_out = enc_out if enc_out is None else enc_out.index_select(0, beam_idx)
         new_enc_mask = enc_mask if enc_mask is None else enc_mask.index_select(0, beam_idx)
 
-        past = ((new_enc_out, new_enc_mask), reordered_past)
+        past = ((enc_out, new_enc_mask), reordered_past)
         return past
 
     def get_encoder(self):

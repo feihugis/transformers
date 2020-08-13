@@ -423,7 +423,9 @@ class GenerationMixin:
                 .to(input_ids.device)
             )
             # expand encoder_outputs
-            encoder_outputs = (encoder_outputs[0].index_select(0, expanded_batch_idxs), *encoder_outputs[1:])
+            # encoder_outputs = (encoder_outputs[0].index_select(0, expanded_batch_idxs), *encoder_outputs[1:])
+            # encoder_outputs = (encoder_outputs[0], *encoder_outputs[1:])
+            print("encoder_outputs: {} ".format(encoder_outputs[0].shape))
 
         else:
             encoder_outputs = None
